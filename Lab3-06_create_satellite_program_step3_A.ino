@@ -3,7 +3,12 @@
 HeptaCdh cdh;
 HeptaEps eps;
 
+// Two separate thresholds prevent chattering when voltage hovers near the boundary
+const float VOLTAGE_TURN_OFF = 3.7;
+const float VOLTAGE_TURN_ON  = 3.9;
+
 const float temperature = 25.0; // Temperature in degrees Celsius
+bool sw3V3_is_on = true;
 
 bool is_cmd_received(void);
 char get_cmd(void);
@@ -16,11 +21,24 @@ void setup() {
 }
 
 void loop() {
+  float battery_voltage = eps.get_battery_voltage();
   cdh.println("------------------------------");
   cdh.printf("Satellite Time: %.2f seconds\n", millis() / 1000.0); // Print time in seconds
-  cdh.printf("Battery Voltage: %.2f V\n", eps.get_battery_voltage());
+  cdh.printf("Battery Voltage: %.2f V\n", battery_voltage);
   cdh.printf("Temperature: %.2f °C\n", temperature);
   cdh.println("------------------------------");
+
+  if (sw3V3_is_on && battery_voltage < VOLTAGE_TURN_OFF) {
+    cdh.println("Battery voltage is low! Switching off 3.3V SW to save power.");
+    eps.switch_3V3_off();
+    sw3V3_is_on = false;
+  } else if (!sw3V3_is_on && battery_voltage > VOLTAGE_TURN_ON) {
+    cdh.println("Battery voltage recovered. Switching on 3.3V SW.");
+    eps.switch_3V3_on();
+    sw3V3_is_on = true;
+  } else {
+    cdh.printf("3.3V SW is %s.\n", sw3V3_is_on ? "on" : "off");
+  }
 
   if (is_cmd_received()) {
     char cmd = get_cmd();
@@ -39,6 +57,7 @@ void loop() {
         }
 
         case 'b': {
+          cdh.printf("Saving voltages to the SD card...\r\n");
           File file = cdh.create_file("test.txt");
           if (file) {
             for(uint8_t i = 0; i < 10; i++) {
@@ -47,16 +66,21 @@ void loop() {
               delay(1000);
             }
             file.close();
-
-            file = cdh.open_file("test.txt");
-            while (file && file.available()) {
-              cdh.write(cdh.read_file(file));
-            }
-            file.close();
           } else {
             cdh.printf("Failed to create file on SD card.\r\n");
             break;
           }
+
+          cdh.printf("Done saving voltages to the SD card.\r\n");
+          cdh.printf("Reading voltages from the SD card...\r\n");
+
+          file = cdh.open_file("test.txt");
+          while (file && file.available()) {
+            cdh.write(cdh.read_file(file));
+          }
+          file.close();
+
+          cdh.printf("Done reading voltages from the SD card.\r\n");
           break;
         }
 
