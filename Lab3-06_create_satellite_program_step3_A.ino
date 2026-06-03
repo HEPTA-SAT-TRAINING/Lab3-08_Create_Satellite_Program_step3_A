@@ -50,7 +50,7 @@ void loop() {
       switch (cmd) {
         case 'a': {
           for(uint8_t i = 0; i < 10; i++) {
-            cdh.println("Hello Hepta sat lite");
+            cdh.println("Hello HEPTA-SAT");
             delay(1000);
           }
           break;
